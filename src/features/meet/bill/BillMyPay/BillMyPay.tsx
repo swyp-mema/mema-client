@@ -1,19 +1,26 @@
+import { Bills } from '@/types/bills';
 import React from 'react';
 import styled from 'styled-components';
 
-const BillMyPay = () => {
+type Props = {
+  payFors: Bills;
+};
+
+const BillMyPay = ({ payFors }: Props) => {
   return (
     <Container>
       <p className="paymentTitle">내가 보내야 할 돈</p>
       <div className="paymentContainer">
-        <p className="payment">
-          <span>
-            <b className="paymentName">쌈뽕한메마러버</b>님에게
-          </span>
-          <span>
-            <b className="paymentPrice">12800</b>원
-          </span>
-        </p>
+        {payFors.charges.map((payFor) => (
+          <p key={payFor.chargeId} className="payment">
+            <span>
+              <b className="paymentName">{payFor.payeeNickname}</b>님에게
+            </span>
+            <span>
+              <b className="paymentPrice">{payFor.totalPrice / payFor.peopleNumber}</b>원
+            </span>
+          </p>
+        ))}
       </div>
     </Container>
   );

@@ -6,17 +6,20 @@ import TabBar from '@/components/TabBar';
 import BillContent from '@/features/meet/bill/BillContent';
 import BillMyPay from '@/features/meet/bill/BillMyPay';
 import BillNull from '@/features/meet/bill/BillNull';
-import { getBills } from '@/lib/api/bills';
+import { deleteBill, getBill, getBills } from '@/lib/api/bills';
 import useToggle from '@/lib/hooks/useToggle';
-import { Bills } from '@/types/bills';
-import { useQuery } from '@tanstack/react-query';
+import { Bill, Bills } from '@/types/bills';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { AxiosResponse } from 'axios';
-import { useRouter } from 'next/navigation';
-import React, { useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import html2canvas from 'html2canvas';
+import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 
 function BillPage() {
   const router = useRouter();
+  const params = useParams();
+  const captureRef = useRef<HTMLDivElement>(null);
   const [userName, setUserName] = useState('메마만세');
   const [chargeId, setChargeId] = useState(0);
   const [isOpenShareModal, toggleOpenShareModal] = useToggle();
@@ -30,8 +33,36 @@ function BillPage() {
     queryFn: () => getBills(1),
   });
 
-  const onClickShare = () => {
-    //캡쳐로직구현
+  const { data: bill } = useQuery<AxiosResponse<Bill>>({
+    queryKey: ['bill'],
+    queryFn: () => getBill({ meetId: Number(params.id), chargeId }),
+    enabled: chargeId !== 0,
+  });
+
+  const { data: payFors } = useQuery<AxiosResponse<Bills>>({
+    queryKey: ['payFors'],
+    queryFn: () => getBills(1),
+  });
+
+  const deleteBillMutation = useMutation({
+    mutationFn: deleteBill,
+    onSuccess: () => {
+      toggleOpenDeleteModal();
+      toggleOpenConfirmModal();
+    },
+  });
+
+  const onClickShare = async () => {
+    if (captureRef.current) {
+      const canvas = await html2canvas(captureRef.current);
+      const image = canvas.toDataURL('image/png');
+      // console.log(image);
+      const link = document.createElement('a');
+      link.href = image;
+      link.download = 'capture.png';
+      link.click();
+    }
+
     toggleOpenShareModal();
   };
 
@@ -43,12 +74,16 @@ function BillPage() {
     toggleOpenNotUserModal();
   };
 
+  const onClickDelete = () => {
+    deleteBillMutation.mutate({ meetId: Number(params.id), chargeId });
+  };
+
   return (
-    <>
+    <div ref={captureRef}>
       <TabBar rightType="shareBtn" onClick={onClickShare} />
       {bills ? (
         <>
-          <BillMyPay />
+          {payFors && <BillMyPay payFors={payFors.data} />}
           {bills.data.charges.map((bill) => (
             <BillContent
               key={bill.chargeId}
@@ -91,7 +126,7 @@ function BillPage() {
           width={294}
         >
           <Text>
-            <Emphasize>봉추찜닭</Emphasize>
+            <Emphasize>{bill?.data.content}</Emphasize>
             <br />
             정산을 수정/삭제하시겠습니까?
           </Text>
@@ -100,17 +135,14 @@ function BillPage() {
       {isOpenDeleteModal && (
         <Modal
           type="OkCancel"
-          onOk={() => {
-            toggleOpenDeleteModal();
-            toggleOpenConfirmModal();
-          }}
+          onOk={onClickDelete}
           onClose={toggleOpenDeleteModal}
           okButtonName="삭제"
           closeButtonName="취소"
           width={294}
         >
           <Text>
-            <Emphasize>봉추찜닭</Emphasize>을 삭제하시겠어요?
+            <Emphasize>{bill?.data.content}</Emphasize>을 삭제하시겠어요?
             <DisabledText>정산을 삭제하면 복구할 수 없어요.</DisabledText>
           </Text>
         </Modal>
@@ -120,7 +152,7 @@ function BillPage() {
           <Text>정산이 삭제되었어요.</Text>
         </Modal>
       )}
-    </>
+    </div>
   );
 }
 

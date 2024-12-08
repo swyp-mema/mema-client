@@ -5,6 +5,7 @@ import Input from '@/components/Input';
 import InputWrapper from '@/components/Input/InputWrapper';
 import Button from '@/components/Button';
 import TabBar from '@/components/TabBar';
+import { useSearchParams } from 'next/navigation';
 
 type Props = {
   data: {
@@ -48,6 +49,9 @@ const BillCreatePrice = ({
   onClickAllSelect,
   onClickStep2,
 }: Props) => {
+  const searchParams = useSearchParams();
+  const searchParam = Number(searchParams.get('chargeId'));
+
   return (
     <Container>
       <TabBar onClickBack={onClickBack} />
@@ -97,7 +101,11 @@ const BillCreatePrice = ({
             <b>{Number(value) / data.memberIds.length}</b>원 이에요!
           </p>
         </div>
-        <Button name="정산 공유하기" disabled={data.totalPrice === 0} onClick={onClickStep2} />
+        <Button
+          name={searchParam === 0 ? '정산 공유하기' : '수정하기'}
+          disabled={data.totalPrice === 0}
+          onClick={onClickStep2}
+        />
       </div>
     </Container>
   );

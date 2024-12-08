@@ -4,21 +4,22 @@ import { Text } from '@/components/Modal/modalTypography';
 import BillCreateName from '@/features/meet/bill/BillCreate/BillCreateName';
 import BillCreatePrice from '@/features/meet/bill/BillCreate/BillCreatePrice';
 import { useInputState } from '@/hooks/useInputState';
-import { createBill } from '@/lib/api/bills';
+import { createBill, getBill, updateBill } from '@/lib/api/bills';
 import { getMeet } from '@/lib/api/meets';
 import useToggle from '@/lib/hooks/useToggle';
+import { Bill } from '@/types/bills';
 import { Meet } from '@/types/meets';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { AxiosResponse } from 'axios';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
 
 const BillUpsertPage = () => {
   const params = useParams();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const [current, setCurrent] = useState(0);
   const [isAllSelected, setIsAllSelected] = useState(false);
-  // const [chargeId, setChargeId] = useState<string | null>(null);
   const [createData, setCreateData] = useState<{
     content: string;
     totalPrice: number;
@@ -37,6 +38,7 @@ const BillUpsertPage = () => {
     handleFocus,
     handleBlur,
     handleChange,
+    setValue: setInputName,
   } = useInputState();
   const {
     value: inputPrice,
@@ -45,19 +47,41 @@ const BillUpsertPage = () => {
     handleFocus: handleFocusPrice,
     handleBlur: handleBlurPrice,
     handleChange: handleChangePrice,
+    setValue: setInputPrice,
   } = useInputState();
   const [isOpenModal, toggleOpenModal] = useToggle();
   const [isOpenConfirmModal, toggleOpenConfirmModal] = useToggle();
+
+  const searchParam = Number(searchParams.get('chargeId'));
 
   const { data: meet } = useQuery<AxiosResponse<Meet>>({
     queryKey: ['meet'],
     queryFn: () => getMeet(Number(params.id)),
   });
 
+  const { data: bill } = useQuery<AxiosResponse<Bill>>({
+    queryKey: ['bill'],
+    queryFn: () => getBill({ meetId: Number(params.id), chargeId: searchParam }),
+    enabled: searchParam !== 0,
+  });
+
   const createBillMutation = useMutation({
     mutationFn: createBill,
     onSuccess: () => {
       toggleOpenConfirmModal();
+      setCreateData({ content: '', totalPrice: 0, peopleNumber: 0, memberIds: [] });
+      setInputName('');
+      setInputPrice('');
+    },
+  });
+
+  const updateBillMutation = useMutation({
+    mutationFn: updateBill,
+    onSuccess: () => {
+      toggleOpenConfirmModal();
+      setCreateData({ content: '', totalPrice: 0, peopleNumber: 0, memberIds: [] });
+      setInputName('');
+      setInputPrice('');
     },
   });
 
@@ -119,7 +143,15 @@ const BillUpsertPage = () => {
 
   const onClickSubmitBtn = () => {
     toggleOpenModal();
-    createBillMutation.mutate({ meetId: Number(params.id), data: createData });
+    if (searchParam === 0) {
+      createBillMutation.mutate({ meetId: Number(params.id), data: createData });
+    } else {
+      updateBillMutation.mutate({
+        meetId: Number(params.id),
+        chargeId: searchParam,
+        data: createData,
+      });
+    }
   };
 
   useEffect(() => {
@@ -134,6 +166,20 @@ const BillUpsertPage = () => {
       });
     }
   }, [meet]);
+
+  useEffect(() => {
+    if (bill) {
+      setCreateData((prev) => ({
+        ...prev,
+        content: bill.data.content,
+        totalPrice: bill.data.totalPrice,
+        peopleNumber: bill.data.peopleNumber,
+        memberIds: bill.data.members.map((member) => member.userId),
+      }));
+      setInputName(bill.data.content);
+      setInputPrice(String(bill.data.totalPrice));
+    }
+  }, [bill]);
 
   useEffect(() => {
     setCreateData((prev) => ({ ...prev, content: inputName }));
@@ -181,7 +227,6 @@ const BillUpsertPage = () => {
     },
   ];
 
-  console.log(createData);
   return (
     <>
       {steps[current].content}
